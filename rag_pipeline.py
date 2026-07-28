@@ -123,40 +123,50 @@ Instructions:
 
 def run_rag(query, conversation_history=None):
     """
-    Run the full RAG pipeline with input security checks, 
-    context filtering, and graceful fallback handling.
+    Run the full RAG pipeline with input security, query rewriting,
+    filtering, and hallucination monitoring.
     """
-    # 1. Initialize default values
+    # 1. Initialize default/fallback values
     answer = ""
     documents = []
     distances = []
     confidence = 0.0
-    grounding = {}
-    
+    grounding = {"verdict": "UNKNOWN", "is_grounded": True, "warning": ""}
+
     # ── Week 12: Input Security Validation ────────────────────────────────────
     is_valid, validation_error = validate_input(query)
     if not is_valid:
-        answer = validation_error
         return {
-            "answer": answer,
+            "answer": validation_error,
             "sources": [],
             "distances": [],
             "confidence": 0.0,
-            "grounding": {"verdict": "UNKNOWN", "is_grounded": True, "warning": ""},
+            "grounding": grounding,
             "error": validation_error,
         }
-        
+
     query = sanitize_input(query)
     # ─────────────────────────────────────────────────────────────────────────
 
-    # ── Week 10: Core Retrieval ──────────────────────────────────────────────
-    raw_documents, raw_distances = retrieve_context(query)
+    # ── Week 15: Context-Aware Query Rewriting ────────────────────────────────
+    conv_context = ""
+    if conversation_history:
+        if hasattr(conversation_history, "messages"):
+            conv_context = str(conversation_history.messages[-4:])
+        elif hasattr(conversation_history, "history"):
+            conv_context = str(conversation_history.history[-4:])
+        else:
+            conv_context = str(conversation_history)
 
-    # ── Week 14: Filtering irrelevance ────────────────────────────────────────
-    # Apply your threshold filters to weed out unrelated vector matches
+    search_query = rewrite_query(query, conversation_context=conv_context)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # ── Week 10: Core Retrieval ──────────────────────────────────────────────
+    raw_documents, raw_distances = retrieve_context(search_query)
+
+    # ── Week 14: Similarity Filtering ─────────────────────────────────────────
     documents, distances = filter_by_threshold(raw_documents, raw_distances)
 
-    # If NO relevant source files passed the filter, gracefully fall back
     if not has_relevant_results(documents):
         answer = get_fallback_response()
         return {
@@ -169,34 +179,31 @@ def run_rag(query, conversation_history=None):
         }
     # ─────────────────────────────────────────────────────────────────────────
 
-    # Calculate confidence based on the valid, filtered distances
+    # ── Week 13: Calculate Confidence ─────────────────────────────────────────
     confidence = calculate_confidence(distances)
 
-    # ── Week 10 & 14: Core Generation with Exception Safety ───────────────────
+    # ── Week 10 & 14: Core Generation with Exception Protection ───────────────
     try:
         answer = generate_answer(query, documents, conversation_history)
     except Exception as e:
-        # Wrap API crashes or rate-limiting elegantly
         user_friendly_error = handle_api_error(e)
         return {
             "answer": user_friendly_error,
             "sources": documents,
             "distances": distances,
             "confidence": confidence,
-            "grounding": {"verdict": "UNKNOWN", "is_grounded": True, "warning": ""},
+            "grounding": grounding,
             "error": str(e),
         }
     # ─────────────────────────────────────────────────────────────────────────
 
-    # ── Week 13: Grounding Checks ─────────────────────────────────────────────
+    # ── Week 13: Grounding Check ──────────────────────────────────────────────
     grounding = check_hallucination(answer, documents)
-    # ─────────────────────────────────────────────────────────────────────────
 
-    # ── Week 11: History Logging ──────────────────────────────────────────────
+    # ── Week 11: Save Interaction to History ──────────────────────────────────
     if conversation_history is not None:
         conversation_history.add_message("user", query)
         conversation_history.add_message("assistant", answer)
-    # ─────────────────────────────────────────────────────────────────────────
 
     return {
         "answer": answer,
