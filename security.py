@@ -13,6 +13,48 @@
 
 import re
 
+# Regular expressions for automated PII & secret redaction
+PII_PATTERNS = {
+    "email": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
+    "phone": r"\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
+    "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
+    "api_key": r"(?:sk-[a-zA-Z0-9]{20,}|AIzaSy[a-zA-Z0-9_-]{33})",
+}
+
+def redact_sensitive_data(text: str) -> tuple[str, bool]:
+    """
+    Scans text and replaces sensitive PII and credential patterns with mask tokens.
+    Returns (redacted_text, contains_pii_flag).
+    """
+    if not text:
+        return text, False
+
+    redacted_text = text
+    pii_found = False
+
+    for pii_type, pattern in PII_PATTERNS.items():
+        if re.search(pattern, redacted_text):
+            pii_found = True
+            redacted_text = re.sub(pattern, f"[REDACTED_{pii_type.upper()}]", redacted_text)
+
+    return redacted_text, pii_found
+
+
+def generate_metadata_tag(text: str, source: str, sensitivity: str = "internal") -> dict:
+    """
+    Generates standardized compliance metadata tags for data payloads.
+    Sources: 'user_input', 'document', 'model_output'
+    Sensitivity: 'public', 'internal', 'confidential', 'restricted'
+    """
+    _, contains_pii = redact_sensitive_data(text)
+    
+    return {
+        "source": source,
+        "sensitivity": "confidential" if contains_pii else sensitivity,
+        "data_type": "PII" if contains_pii else "operational",
+        "contains_pii": contains_pii,
+    }
+
 # --- The RAG/security concept ---
 # Think about what a prompt injection attack looks like.
 # An attacker is trying to write text that will "escape" from the user

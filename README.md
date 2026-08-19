@@ -108,3 +108,23 @@ Update this checklist as you complete each week's assignment.
 - [x] Week 13 — Implemented hallucination monitoring
 - [x] Week 14 — Implemented filtering and fallbacks
 - [x] Week 15 — Implemented multi-step AI workflows
+
+## 🔒 Compliance & Data Protection (SOC 2 Principles)
+
+### Applicable Trust Principles
+- **Privacy:** Responsible handling and automated masking of Personally Identifiable Information (PII).
+- **Confidentiality:** Preventing exposure of credentials, API keys, and internal documents across public logs.
+- **Security:** Enforcing strict boundary sanitization before data touches downstream LLM providers.
+
+### Metadata Tagging Scheme
+| Tag Key | Possible Values | Description |
+| :--- | :--- | :--- |
+| `sensitivity` | `public`, `internal`, `confidential`, `restricted` | Data access classification level |
+| `data_type` | `operational`, `PII`, `credential` | High-level data category |
+| `source` | `user_input`, `document`, `model_output` | Origin point in the RAG pipeline |
+
+### Redaction Boundaries
+Automated regex pattern matching (`security.py`) masks email addresses, telephone numbers, Social Security Numbers, and API keys (`[REDACTED_TYPE]`) prior to:
+1. Forwarding text to Gemini or vector embeddings.
+2. Persisting chat exchanges to session history.
+3. Writing debug output to application logs.
