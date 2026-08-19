@@ -128,3 +128,21 @@ Automated regex pattern matching (`security.py`) masks email addresses, telephon
 1. Forwarding text to Gemini or vector embeddings.
 2. Persisting chat exchanges to session history.
 3. Writing debug output to application logs.
+
+## 🧪 Testing & Continuous Integration (CI)
+
+### What is Tested
+- **Safety & Guardrails (`security.py`):** Ensures prompt injection blocking, string sanitization, PII masking (emails, phones, credentials), and compliance metadata escalation.
+- **Context Filtering (`filters.py`):** Verifies L2 distance threshold filtering and empty-result fallback flags.
+- **Scoring Logic (`monitoring.py`):** Tests vector distance to confidence percentage normalization math.
+
+### Why These Tests Matter
+These unit tests are deterministic and offline—they do not hit live Gemini API endpoints or ChromaDB stores. They protect safety-critical boundaries, guaranteeing that compliance logic or input sanitization does not silently break during code updates.
+
+### What is Intentionally Excluded
+- Live API network calls to Gemini (to avoid token costs and non-deterministic text generation).
+- Physical ChromaDB database disk I/O (mocked by testing pure filtering logic).
+
+### Running Tests Locally
+```bash
+pytest
